@@ -1,0 +1,84 @@
+name: 'Style Checks'
+description: 'Perform Style Checks'
+inputs:
+  source_directory:
+    description: 'Existing git directory to perform style checks on'
+    default: 'source'
+
+runs:
+  using: "composite"
+  steps:
+
+    # Run codespell first to avoid issues with style check on same location
+    - name: Codespell in place
+      shell: bash
+      run: |
+        pip install codespell
+        codespell -fHw ${{ inputs.source_directory }}
+
+    - name: C++ Formatting
+      uses: DoozyX/clang-format-lint-action@v0.16
+      with:
+        source: ${{ inputs.source_directory }}
+        extensions: "h,cxx,in"
+        exclude: "./cmake **/*.py.in **/*.log.in **/*.json.in **/*.thumbnailer.in **/*.cmake.in **/*.desktop.in"
+        clangFormatVersion: 18
+        inplace: True
+
+    - name: Python Formatting
+      uses: psf/black@stable
+      with:
+        src: ${{ inputs.source_directory }}
+        options: "--include '(\\.py|\\.py\\.in)'"
+
+    - name: Prettier Formatting
+      continue-on-error: true
+      uses: creyD/prettier_action@v4.3
+      with:
+        working_directory: ${{ inputs.source_directory }}
+        dry: True
+        prettier_options: "-w **/*.{js,json,md,html,yml}"
+
+    - name: Echo Diff
+      shell: bash
+      working_directory: ${{ inputs.source_directory }}
+      run: git diff --color=always --exit-code
+
+    - name: Generate Diff
+      if: failure()
+      shell: bash
+      working_directory: ${{ inputs.source_directory }}
+      run: |
+        diff=$(git diff)
+        echo "$diff" > ./f3d_style_checks_diff.patch
+        {
+          echo 'F3D_STYLE_DIFF<<EOF'
+          echo "$diff"
+          echo EOF
+        } >> "$GITHUB_ENV"
+
+    - name: Upload diff as an artifact
+      if: failure()
+      working_directory: ${{ inputs.source_directory }}
+      uses: actions/upload-artifact@v4
+      with:
+        path: ./f3d_style_diff.patch
+        name: f3d-style-checks-diff-${{ github.event.pull_request.head.ref }}
+
+    - name: Delete comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: style
+        delete: true
+
+    - name: Create comment
+      if: failure()
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: style
+        message: |
+          Style Checks CI failed:
+          ```diff
+          ${{env.F3D_STYLE_DIFF}}
+
+          ```
