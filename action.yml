@@ -3,7 +3,7 @@ description: 'Perform Style Checks'
 inputs:
   source_directory:
     description: 'Existing git directory to perform style checks on'
-    default: 'source'
+    default: '.'
 
 runs:
   using: "composite"
