@@ -41,14 +41,13 @@ runs:
 
     - name: Echo Diff
       shell: bash
-      working_directory: ${{ inputs.source_directory }}
-      run: git diff --color=always --exit-code
+      run: cd ${{ inputs.source_directory }} && git diff --color=always --exit-code
 
     - name: Generate Diff
       if: failure()
       shell: bash
-      working_directory: ${{ inputs.source_directory }}
       run: |
+        cd ${{ inputs.source_directory }}
         diff=$(git diff)
         echo "$diff" > ./f3d_style_checks_diff.patch
         {
@@ -59,10 +58,9 @@ runs:
 
     - name: Upload diff as an artifact
       if: failure()
-      working_directory: ${{ inputs.source_directory }}
       uses: actions/upload-artifact@v4
       with:
-        path: ./f3d_style_diff.patch
+        path: ${{ inputs.source_directory }}/f3d_style_diff.patch
         name: f3d-style-checks-diff-${{ github.event.pull_request.head.ref }}
 
     - name: Delete comment
